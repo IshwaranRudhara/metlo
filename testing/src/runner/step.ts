@@ -1,10 +1,19 @@
 import axios from "axios"
-import { TestStep, TestResult, StepResult, StepResponse, StepRequest } from "../types/test"
+import {
+  TestStep,
+  TestResult,
+  StepResult,
+  StepResponse,
+  StepRequest,
+  Config,
+} from "../types/test"
 import { Context } from "../types/context"
 import { makeRequest } from "./request"
 import { runAssertion } from "./assertions"
 import { runExtractor } from "./extractors"
 import { AxiosResponse } from "axios"
+import { AttackTypeArray } from "../types/enums"
+import { getValues } from "../data"
 
 const axiosRespToStepResponse = (res: AxiosResponse): StepResponse => ({
   data: res.data,
@@ -29,6 +38,7 @@ export const runStep = async (
   step: TestStep,
   nextSteps: TestStep[],
   ctx: Context,
+  config: Config,
 ): Promise<TestResult> => {
   let res: AxiosResponse | null = null
   let err: string | undefined = undefined
@@ -66,7 +76,7 @@ export const runStep = async (
       ctx = runExtractor(e, res, ctx)
     }
     let assertions: boolean[] = (step.assert || []).map(e =>
-      runAssertion(e, res as AxiosResponse, ctx),
+      runAssertion(e, res as AxiosResponse, ctx, config),
     )
 
     stepResult = {
@@ -101,10 +111,16 @@ export const runStep = async (
     Object.entries(ctx.cookies).map(([key, value]) => [key, { ...value }]),
   )
 
-  const nextRes = await runStep(idx + 1, nextStep, nextSteps, {
-    envVars: { ...ctx.envVars },
-    cookies: cookiesCopy,
-  })
+  const nextRes = await runStep(
+    idx + 1,
+    nextStep,
+    nextSteps,
+    {
+      envVars: { ...ctx.envVars },
+      cookies: cookiesCopy,
+    },
+    config,
+  )
   return {
     success: stepResult.success && nextRes.success,
     results: [[stepResult]].concat(nextRes.results),
